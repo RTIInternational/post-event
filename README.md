@@ -20,13 +20,6 @@ Create and activate a python virtual environment with required packages installe
 Using conda and package_list.txt:
 $ conda create --name ENV -- package_list.txt
 $ conda activate ENV
-
-Using pip:
-$ python3 -m venv env
-$ source env/bin/activate
-$ python3 -m pip install --upgrade pip
-$ ...?
-
 ```
 
 
