@@ -1,11 +1,17 @@
 # teehr-post-event
-A collection of modules and notebooks to facilitate exploratory evaluation of hydrologic forecast performance following individual flood events
+A collection of modules and notebooks to facilitate interactive, visual evaluation of hydrologic forecasts for individual flood events
 
 ## How to install post-event notebooks
 
-Install from GitHub
+Create a working directory and change into it:  
 ```bash
-$ pip install 'post-event @ git+https://github.com/RTIInternational/post-event@[BRANCH_TAG]'
+mkdir ~/mydir  
+cd mydir
+```
+
+Clone the teehr-post-event repo:
+```bash
+git clone https://github.com/RTIInternational/teehr-post-event
 ```
 
 ## How to configure post-event notebooks for local execution
