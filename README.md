@@ -18,7 +18,7 @@ $ cd teehr-post-event
 Create and activate a python virtual environment with required packages installed:
 ```bash
 Using conda and package_list.txt:
-$ conda create --name ENV -- package_list.txt
+$ conda create --name ENV --file package_list.txt
 $ conda activate ENV
 ```
 
