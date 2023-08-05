@@ -51,7 +51,7 @@ $ tar -xzvf nwm-post-event-geometry-aug-2023.tar.gz
 
 On Windows:
 $ wget https://ciroh-rti-public-data.s3.us-east-2.amazonaws.com/nwm-post-event-geometry-aug-2023.tar.gz -O nwm-post-event-geometry-aug-2023.tar.gz
-$ 
+$ tar -xf nwm-post-event-geometry-aug-2023.tar.gz
 ```
 
 Return to your working directory and launch jupyter:
