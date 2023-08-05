@@ -45,8 +45,13 @@ $ mkdir my_data_dir/post-event/geo
 Download necessary geometry files into your ```/geo``` directory: 
 ```bash
 $ cd C:/my_data_dir/post-event/geo
+On Linux:
 $ wget https://ciroh-rti-public-data.s3.us-east-2.amazonaws.com/nwm-post-event-geometry-aug-2023.tar.gz
 $ tar -xzvf nwm-post-event-geometry-aug-2023.tar.gz
+
+On Windows:
+$ wget https://ciroh-rti-public-data.s3.us-east-2.amazonaws.com/nwm-post-event-geometry-aug-2023.tar.gz -O nwm-post-event-geometry-aug-2023.tar.gz
+$ 
 ```
 
 Return to your working directory and launch jupyter:
