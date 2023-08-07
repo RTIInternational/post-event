@@ -8,6 +8,8 @@ Installation instructions for three different ways of working with the post-even
 ## 1) Working remotely on the TEEHR Hub
 add instructions   
 
+teehr-hub.rtiamanzi.org
+
 
 ## 2) Working locally within a virtual environment
 
