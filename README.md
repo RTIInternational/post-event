@@ -1,14 +1,34 @@
 # teehr-post-event
 A collection of modules and notebooks to facilitate interactive, visual evaluation of hydrologic forecasts for individual flood events.  
 
-Installation instructions for three different ways of working with the post-event notebooks are described below:  1) working remotely on the TEEHR Hub (AWS) 2) working locally within a python virtual environment  3) working locally in a Docker container
-
-
+Installation instructions for three different ways of working with the post-event notebooks are described:  1) working remotely on the TEEHR Hub (AWS) 2) working locally within a python virtual environment  3) working locally in a Docker container
 
 ## 1) Working remotely on the TEEHR Hub
-add instructions   
 
-teehr-hub.rtiamanzi.org
+Request to be added as a TEEHR Hub user:
+- email mdenno@rti.org with the subject "Teehr Hub user request"
+- include your GitHub handle
+  
+Login to the TEEHR Hub from any browser: 
+- Type ```teehr-hub.rtiamanzi.org``` in the address bar
+- Type ```teehr-hub.rtiamanzi.org``` in the address bar
+- Click ```Sign in with GitHub```
+- Follow instructions to log in to GitHub
+
+From the JupyterLab Launcher (click on the ```+``` button in the upper left to start a new Launcher), 
+- start a Terminal window (double click on the black square with "$_" symbol under the "Other" category)
+
+Create a base working directory in which to clone the teehr-post-event repo and navigate into it:
+```bash
+$ mkdir ~/my_working_dir  
+$ cd my_working_dir
+```
+Clone the teehr-post-event repo
+```bash
+$ git clone https://github.com/RTIInternational/teehr-post-event.git
+```
+Copy t
+
 
 
 ## 2) Working locally within a virtual environment
@@ -18,9 +38,10 @@ Create a working directory and change into it:
 $ mkdir ~/my_working_dir  
 $ cd my_working_dir
 ```
-Clone the teehr-post-event repo and install lfs:
+Clone the teehr-post-event repo and change into the repo directory:
 ```bash
-$ git clone https://github.com/RTIInternational/teehr-post-event
+$ git clone https://github.com/RTIInternational/teehr-post-event.git
+cd teehr-post-event
 ```
 Copy the sample configuration file:
 ```bash
