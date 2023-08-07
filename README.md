@@ -56,10 +56,14 @@ $ jupyter lab
 ## 3) Working locally using Docker
 Following steps above up to and including downloading geometry data.
 
+clone teehr repo into it's own directory (go up to working dir level)
+cd into teehr repo dir
+git checkout v0.1.3
+
 Launch docker and mount your home directory
 ```bash
-$ docker build -t teehr:v0.1.0 .
-$ docker run -it --rm --volume $HOME:$HOME -p 8888:8888 teehr:v0.1.0 jupyter lab --ip 0.0.0.0 $HOME
+$ docker build -t teehr:v0.1.3 .
+$ docker run -it --rm --volume $HOME:$HOME -p 8888:8888 teehr:v0.1.3 jupyter lab --ip 0.0.0.0 $HOME
 ```
 Navigate to your working directory and launch jupyter:
 ```bash
