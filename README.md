@@ -1,7 +1,7 @@
 # teehr-post-event
 A collection of modules and notebooks to facilitate interactive, visual evaluation of hydrologic forecasts for individual flood events.  
 
-Installation instructions for three different ways of working with the post-event notebooks are described:  1) working remotely on the TEEHR Hub (AWS) 2) working locally within a python virtual environment  3) working locally in a Docker container
+Installation instructions for three different ways of working with the post-event notebooks are described:  1) working remotely in the TEEHR Hub 2) working locally within a python virtual environment  3) working locally in a Docker container
 
 ## 1) Working remotely on the TEEHR Hub
 
@@ -26,9 +26,13 @@ Clone the teehr-post-event repo
 ```bash
 $ git clone https://github.com/RTIInternational/teehr-post-event.git
 ```
-Navigate into the repo 'notebooks' directory using the Jupyter File Browser, i.e. ~my_working_dir/teehr-post-event/notebooks
+Open the teehr-post-event data loading notebook (01_load_data.ipynb):
+- Open the JupyterLab file browser by clicking on the file symbol in the far left vertical toolbar
+- Double click on the repo directory using the Jupyter File Browser (i.e. ~my_working_dir/teehr-post-event/)
+- Double click on the "notebooks" directory
+- Double click on "01_load_data.ipynb"
 
-Open the notebook "01_load_data.ipynb"
+
 
 
 
