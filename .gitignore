@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 
 # post-event config file
-post-event-config.json
+local_config.json
