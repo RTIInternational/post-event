@@ -6,14 +6,13 @@ Installation instructions for three different ways of working with the post-even
 ## 1) Working remotely on the TEEHR Hub
 
 Request to be added as a TEEHR Hub user:
-- email mdenno@rti.org with the subject "Teehr Hub user request"
-- include your GitHub handle
+- instructions TBD
   
 Login to the TEEHR Hub from any browser: 
 - Type ```teehr-hub.rtiamanzi.org``` in the address bar
-- Type ```teehr-hub.rtiamanzi.org``` in the address bar
 - Click ```Sign in with GitHub```
-- Follow instructions to log in to GitHub
+- Follow instructions to log in with your GitHub credentials
+- Select one of the two server options based on expected CPU needs
 
 From the JupyterLab Launcher (click on the ```+``` button in the upper left to start a new Launcher), 
 - start a Terminal window (double click on the black square with "$_" symbol under the "Other" category)
@@ -27,7 +26,10 @@ Clone the teehr-post-event repo
 ```bash
 $ git clone https://github.com/RTIInternational/teehr-post-event.git
 ```
-Copy t
+Navigate into the repo 'notebooks' directory using the Jupyter File Browser, i.e. ~my_working_dir/teehr-post-event/notebooks
+
+Open the notebook "01_load_data.ipynb"
+
 
 
 
