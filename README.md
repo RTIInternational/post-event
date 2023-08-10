@@ -19,12 +19,13 @@ Open a terminal window in JupyterLab
 - Click on the blue ```+``` button in the upper left corner to start a new Launcher (if a Launcher is not already open) 
 - Start a terminal window by double clicking on the black square with "$_" symbol under the "Other" category
 
-In the terminal, create a base working directory in which to clone the teehr-post-event repo and navigate into it:
+Clone the teehr-post-event repo  
+- Create a base working directory in which to clone the repo and change into it:
 ```bash
 $ mkdir ~/my_working_dir  
 $ cd my_working_dir
 ```
-Clone the teehr-post-event repo
+- Clone the teehr-post-event repo
 ```bash
 $ git clone https://github.com/RTIInternational/teehr-post-event.git
 ```
