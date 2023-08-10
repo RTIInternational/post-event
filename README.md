@@ -13,9 +13,11 @@ Login to the TEEHR Hub from any browser:
 - Click ```Sign in with GitHub```
 - Follow instructions to log in with your GitHub credentials
 - Select one of the two server options based on expected CPU needs
+- JupyterLab will open once the server starts up (it may take a minute)
 
-From the JupyterLab Launcher (click on the ```+``` button in the upper left to start a new Launcher), 
-- start a Terminal window (double click on the black square with "$_" symbol under the "Other" category)
+Open a terminal window in JupyterLab
+- Click on the blue ```+``` button in the upper left corner to start a new Launcher (if a Launcher is not already open) 
+- Start a terminal window by double clicking on the black square with "$_" symbol under the "Other" category
 
 In the terminal, create a base working directory in which to clone the teehr-post-event repo and navigate into it:
 ```bash
