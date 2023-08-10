@@ -73,15 +73,21 @@ $ tar -xzvf nwm_post_event_geometry_aug_2023.tar.gz
 ```
 Create and activate a python virtual environment with required packages installed:
 ```bash
-Using conda and package_list.txt:
-$ conda create --name ENV --file package_list.txt
-$ conda activate ENV
+Using conda and package_list.txt (replace ENVNAME with your chosen environment name):
+
+$ conda create --name ENVNAME --file package_list.txt
+$ conda activate ENVNAME
 ```
-Navigate to your working directory and launch jupyter:
+Navigate to your working directory and launch Jupyter:
 ```bash
 $ cd my_working_dir
 $ jupyter lab
 ```
+If JupyterLab does not automatically open in a browser, open a browser and go the URL: 
+```
+http://localhost:8888
+```
+
 Open a teehr-post-event notebook and begin working:
 - Open the JupyterLab File Browser by clicking on the file symbol in the far left vertical toolbar
 - Navigate into the repo directory in the File Browser panel (i.e. ~my_working_dir/teehr-post-event/)
@@ -106,4 +112,9 @@ Launch docker and mount your home directory
 ```bash
 $ docker build -t teehr:v0.1.3 .
 $ docker run -it --rm --volume $HOME:$HOME -p 8888:8888 teehr:v0.1.3 jupyter lab --ip 0.0.0.0 $HOME
+```
+
+If JupyterLab does not automatically open in a browser, open a browser and go the URL: 
+```
+http://localhost:8888
 ```
