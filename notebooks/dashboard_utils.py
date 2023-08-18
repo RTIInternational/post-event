@@ -2417,33 +2417,94 @@ def get_dashboard_header(subtitle: str) -> pn.Row:
     return header
     
 
-def read_cache_dir(config_filename: str) -> str:
+def read_root_dir(config_filepath: Path) -> Path:
 
-    with open(config_filename) as file:
-        file_contents = file.read()
-    parsed_json = json.loads(file_contents)
+    parsed_json = read_config_settings(config_filepath)
     
-    return parsed_json['CACHE_ROOT']
+    return Path(parsed_json['PROTOCOL_ROOT'])
     
-def read_config_settings(config_filename: str) -> str:
+def read_config_settings(config_filepath: Path) -> dict:
 
-    # read cache root directory and prior event settings
-
-    with open(config_filename) as file:
+    with open(config_filepath) as file:
         file_contents = file.read()
     parsed_json = json.loads(file_contents)
   
     return parsed_json
     
+def read_event_definitions(event_def_path: Path) -> dict:
+
+    # read prior event settings
+
+    try:
+        with open(event_def_path) as file:
+            file_contents = file.read()
+        parsed_json = json.loads(file_contents)
+    except:
+        parsed_json = {}
+  
+    return parsed_json
+    
+def write_event_definitions(event_def_path: Path, event_definitions: dict):
+
+    with open(event_def_path, "w") as outfile:
+        json.dump(event_definitions, outfile, indent=4)
+  
+    
+def get_default_event() -> dict:
+
+    default_event_specs = {
+        'start_date' : dt.datetime.now().date(),
+        'end_date' : dt.datetime.now().date(),
+        'huc2_list' : [],
+        'lat_limits' : (20, 55),
+        'lon_limits' : (-130, -60),
+        }
+        
+    return default_event_specs
+    
+def get_existing_event(
+    existing_events: dict, 
+    select_event: pn.widgets.Select
+    ) -> dict:
+
+    event_specs = existing_events[select_event.value].copy()
+    event_specs['start_date'] = dt.datetime.strptime(event_specs['start_date'], "%Y%m%d").date()
+    event_specs['end_date'] = dt.datetime.strptime(event_specs['end_date'], "%Y%m%d").date()   
+    event_specs['name'] = select_event.value
+    event_specs['lat_limits'] = tuple(event_specs['lat_limits'])
+    event_specs['lon_limits'] = tuple(event_specs['lon_limits'])
+    
+    return event_specs
+    
+
+def update_event_definitions(
+    existing_events: dict,
+    event_specs: dict,
+    ) -> dict:
+       
+    event_name = event_specs['name']
+    event_specs.pop("name")
+    start_date = event_specs['start_date']
+    end_date = event_specs['end_date']
+    event_specs['start_date'] = dt.datetime.combine(start_date, dt.time(hour=0)).strftime("%Y%m%d")
+    event_specs['end_date'] = dt.datetime.combine(end_date, dt.time(hour=0)).strftime("%Y%m%d")
+    event_specs['lat_limits'] = list(event_specs['lat_limits'])
+    event_specs['lon_limits'] = list(event_specs['lon_limits'])
+
+    add_event = {event_name : event_specs}    
+    
+    return existing_events | add_event
+
+
     
 ############# region of interest selection utilities
 
 def get_selected_huc2_list(
     huc2: gpd.GeoDataFrame,
-    sel: hv.streams.Selection1D,
+    sel: list,
     ) -> list:
     
-    huc2_list = huc2.iloc[sel.index].index.to_list()
+    huc2_list = huc2.iloc[sel].index.to_list()
     if not huc2_list:
         print("No HUC2 is selected - filtering features based on Lat/Lon limits only")
     
@@ -2592,35 +2653,49 @@ def get_outer_bound(
     
     return mp.convex_hull
     
-def get_nwm_dates(
+def get_nwm_dates_from_event_dates(
     configuration: str,
-    start_date: dt.date,
-    end_date: dt.date,
+    event_start_date: dt.date,
+    event_end_date: dt.date,
     ) -> dict[dt.datetime]:
     
     # first validate start/end dates
-    validate_dates(start_date, end_date)
+    validate_dates(event_start_date, event_end_date)
     
     # get dates
-    reference_n_days = (end_date - start_date).days + 1   
-    value_time_start = dt.datetime.combine(start_date, dt.time(hour=0))
-    value_time_end = get_last_value_time(end_date, configuration)
-    value_n_days = (value_time_end - value_time_start).days + 1    
+    if configuration == 'medium_range_mem1':
+        reference_time_start = dt.datetime.combine(event_start_date, dt.time(hour=0)) - dt.timedelta(days=10)
+        reference_time_end = dt.datetime.combine(event_end_date, dt.time(hour=18))
+    elif configuration == 'short_range':
+        reference_time_start = dt.datetime.combine(event_start_date, dt.time(hour=0)) - dt.timedelta(hours=17)
+        reference_time_start = reference_time_start.replace(hour=0)
+        reference_time_end = dt.datetime.combine(event_end_date, dt.time(hour=23))
+        reference_time_end = reference_time_end.replace(hour=23)
+
+    reference_n_days = (reference_time_end - reference_time_start).days + 1  
+    value_time_start = reference_time_start
+    value_time_end = get_last_value_time(reference_time_end , configuration)
+    value_n_days = (value_time_end - value_time_start).days + 1       
     
     # store in dictionary
     nwm_dates = dict(
-        reference_date_start = start_date,
-        reference_date_end = end_date,
+        reference_time_start = reference_time_start,
+        reference_time_end = reference_time_end,
         reference_n_days = reference_n_days,
         value_time_start = value_time_start,
         value_time_end = value_time_end,
         value_n_days = value_n_days
     )
-    print(f"{reference_n_days} days selected - data will be included corresponding to {configuration} reference times from {start_date} through {end_date}")
+    print(f"Forecasts will be included that overlap with event dates from {event_start_date} through {event_end_date}. \nThis includes {configuration} forecasts with reference times from {reference_time_start} through {reference_time_end}")
+          
+    if value_time_end > dt.datetime.now():
+        print(f"\033[1m!Warning\033[0m - Some time steps of these forecasts are in the future. Only available observations will be loaded (return to load more observations later)\n") 
+    else:
+        print("\n")
     
-    return nwm_dates
-    
-def get_nwm_dates2(
+    return nwm_dates 
+
+def get_nwm_dates_from_ref_dates(
     configuration: str,
     start_date: dt.date,
     end_date: dt.date,
@@ -2649,7 +2724,6 @@ def get_nwm_dates2(
     print(f"{reference_n_days} days selected - data will be included corresponding to {configuration} reference times from {reference_time_start} through {reference_time_end}")
     
     return nwm_dates 
-
  
 def get_n_ref_times(ndays: int, config: str) -> int:
 
@@ -2691,13 +2765,24 @@ def validate_dates(
         raise ValueError(f"Dates must be selected: start date is {start_date}, end date is {end_date}")
     
     if start_date > end_date:
-        raise ValueError(f"Invalid dates selected: Start date {start_date} is greater than {end_date}")
+        raise ValueError(f"Invalid dates selected: Start date {start_date} is greater than End date {end_date}")
     
     if start_date > dt.datetime.now().date():
         raise ValueError(f"Invalid dates selected: Start date {start_date} cannot be in the future")
  
     if end_date > dt.datetime.now().date():
         raise ValueError(f"Invalid dates selected: End date {end_date} cannot be in the future")
+        
+def get_n_obs_days_minus_future(
+    start_date: Union[dt.date, dt.datetime], 
+    n_days: int,
+    ) -> int:
+    
+    if (start_date + dt.timedelta(n_days)) > dt.datetime.now():
+        n_days = (dt.datetime.now().date() - start_date.date()).days + 1
+ 
+    return n_days
+ 
  
 def get_nwm_conus_forecast_configs() -> list:
 
