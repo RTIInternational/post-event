@@ -2653,6 +2653,20 @@ def get_outer_bound(
     
     return mp.convex_hull
     
+def adj_time_end(
+    configuration: str, 
+    time_end: dt.date,
+    ) -> dt.date:
+    
+    now = dt.datetime.utcnow()
+    adj_end = time_end
+    if time_end.date() > dt.datetime.utcnow().date():
+        adj_end = dt.datetime.utcnow().date()
+        if 'extend' in configuration and now.hour < 20:
+            adj_end = dt.datetime.utcnow().date() - dt.timedelta(days=1)
+    
+    return adj_end
+    
 def get_nwm_dates_from_event_dates(
     configuration: str,
     event_start_date: dt.date,
@@ -2671,25 +2685,28 @@ def get_nwm_dates_from_event_dates(
         reference_time_start = reference_time_start.replace(hour=0)
         reference_time_end = dt.datetime.combine(event_end_date, dt.time(hour=23))
         reference_time_end = reference_time_end.replace(hour=23)
-
-    reference_n_days = (reference_time_end - reference_time_start).days + 1  
+        
+    adj_ref_end = adj_time_end(configuration, reference_time_end)
+    reference_n_days = (adj_ref_end - reference_time_start.date()).days + 1  
+    
     value_time_start = reference_time_start
-    value_time_end = get_last_value_time(reference_time_end , configuration)
+    value_time_end = get_last_value_time(adj_ref_end, configuration)
     value_n_days = (value_time_end - value_time_start).days + 1       
     
     # store in dictionary
     nwm_dates = dict(
         reference_time_start = reference_time_start,
-        reference_time_end = reference_time_end,
+        reference_time_end = adj_ref_end,
         reference_n_days = reference_n_days,
         value_time_start = value_time_start,
         value_time_end = value_time_end,
         value_n_days = value_n_days
     )
-    print(f"Forecasts will be included that overlap with event dates from {event_start_date} through {event_end_date}. \nThis includes {configuration} forecasts with reference times from {reference_time_start} through {reference_time_end}")
+    print(f"All forecasts that overlap with event dates from {event_start_date} through {event_end_date} will be loaded. \nThis includes {configuration} forecasts with reference times on {reference_time_start} through {reference_time_end}")
           
-    if value_time_end > dt.datetime.now():
-        print(f"\033[1m!Warning\033[0m - Some time steps of these forecasts are in the future. Only available observations will be loaded (return to load more observations later)\n") 
+    now = dt.datetime.now()
+    if reference_time_end > now or value_time_end > now:
+        print(f"\033[1m!Warning\033[0m - Some forecasts and/or observations are in the future. Only available data will be loaded (return to load more later)\n") 
     else:
         print("\n")
     
@@ -2765,13 +2782,13 @@ def validate_dates(
         raise ValueError(f"Dates must be selected: start date is {start_date}, end date is {end_date}")
     
     if start_date > end_date:
-        raise ValueError(f"Invalid dates selected: Start date {start_date} is greater than End date {end_date}")
+        raise ValueError(f"Invalid dates selected: start date {start_date} is greater than end date {end_date}")
     
-    if start_date > dt.datetime.now().date():
-        raise ValueError(f"Invalid dates selected: Start date {start_date} cannot be in the future")
+#    if start_date > dt.datetime.now().date():
+#        raise ValueError(f"Invalid dates selected: Start date {start_date} cannot be in the future")
  
-    if end_date > dt.datetime.now().date():
-        raise ValueError(f"Invalid dates selected: End date {end_date} cannot be in the future")
+#    if end_date > dt.datetime.now().date():
+#        raise ValueError(f"Invalid dates selected: End date {end_date} cannot be in the future")
         
 def get_n_obs_days_minus_future(
     start_date: Union[dt.date, dt.datetime], 
