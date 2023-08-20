@@ -2458,6 +2458,7 @@ def get_default_event() -> dict:
         'huc2_list' : [],
         'lat_limits' : (20, 55),
         'lon_limits' : (-130, -60),
+        'name' : 'YYYYMM_name'
         }
         
     return default_event_specs
@@ -2505,8 +2506,8 @@ def get_selected_huc2_list(
     ) -> list:
     
     huc2_list = huc2.iloc[sel].index.to_list()
-    if not huc2_list:
-        print("No HUC2 is selected - filtering features based on Lat/Lon limits only")
+    #if not huc2_list:
+    #    print("No HUC2 is selected - filtering features based on Lat/Lon limits only")
     
     return huc2_list
     
@@ -2546,7 +2547,7 @@ def get_nwm_id_list_as_int(
 
     return nwm_ids
     
-def get_nwm_subset(
+def get_nwm_subset_by_latlonbox(
     huc2_list: list,
     latlon_box: Polygon,
     nwm_gdf: gpd.GeoDataFrame,    
@@ -2561,6 +2562,31 @@ def get_nwm_subset(
     
     if reach_set == 'all reaches':
         points_selected_gdf = get_point_features_selected(huc2_list, latlon_box, nwm_gdf, nwm_huc12_crosswalk)
+    else:
+        nwm_ids_with_prefix = get_crosswalked_id_list(usgs_ids_with_prefix, usgs_nwm_crosswalk, input_list_column = 'primary_location_id')      
+        points_selected_gdf = nwm_gdf[nwm_gdf['id'].isin(nwm_ids_with_prefix)]
+        
+    print(f"{len(points_selected_gdf)} features selected")
+
+    return points_selected_gdf
+
+def get_nwm_subset_by_huc10s(
+    huc10_list: list,
+    nwm_gdf: gpd.GeoDataFrame,    
+    nwm_huc12_crosswalk: pd.DataFrame,
+    usgs_ids: list[str],
+    usgs_nwm_crosswalk: pd.DataFrame,  
+    reach_set: str,
+    ) -> list[int]:
+    
+    nwm_version_prefix = nwm_huc12_crosswalk['primary_location_id'][0].split('-')[0] + '-'
+    usgs_ids_with_prefix = ['-'.join(['usgs', s]) for s in usgs_ids]    
+    
+    if reach_set == 'all reaches':
+        nwm_huc10_crosswalk = nwm_huc12_crosswalk.copy()
+        nwm_huc10_crosswalk['secondary_location_id'] = nwm_huc12_crosswalk['secondary_location_id'].str.replace('huc12','huc10').str[:16]
+        nwm_in_huc10_list = get_crosswalked_id_list(huc10_list, nwm_huc10_crosswalk, 'secondary_location_id')
+        points_selected_gdf = nwm_gdf[nwm_gdf['id'].isin(nwm_in_huc10_list)]        
     else:
         nwm_ids_with_prefix = get_crosswalked_id_list(usgs_ids_with_prefix, usgs_nwm_crosswalk, input_list_column = 'primary_location_id')      
         points_selected_gdf = nwm_gdf[nwm_gdf['id'].isin(nwm_ids_with_prefix)]
@@ -2653,29 +2679,100 @@ def get_outer_bound(
     
     return mp.convex_hull
     
-def adj_time_end(
+def adj_reftime_end(
+    reftime_end: dt.date,
     configuration: str, 
-    time_end: dt.date,
     ) -> dt.date:
     
-    now = dt.datetime.utcnow()
-    adj_end = time_end
-    if time_end.date() > dt.datetime.utcnow().date():
-        adj_end = dt.datetime.utcnow().date()
-        if 'extend' in configuration and now.hour < 20:
-            adj_end = dt.datetime.utcnow().date() - dt.timedelta(days=1)
+    now = dt.datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+    adj_end = reftime_end
+    
+    if isinstance(reftime_end, dt.date):
+        #assume last ref time on the date
+        adj_end = get_last_ref_time(reftime_end, configuration)
+    else:
+        adj_end = reftime_end
+        
+    if adj_end > now:
+        if configuration == 'medium_range_mem1':
+            if now.hour < 6:
+                adj_end = (now - dt.timedelta(days=1)).replace(hour=18)
+            if now.hour > 6:
+                adj_end = now.replace(hour=0)
+            if now.hour > 12:
+                adj_end = now.replace(hour=6)
+            if now.hour > 18:
+                adj_end = now.replace(hour=12)
+        elif configuration == 'short_range':
+            adj_end = now - dt.timedelta(hours=2)
+    
+    return adj_end.date()
+    
+def adj_valtime_end(
+    valtime_end: dt.date,
+    configuration: str, 
+    ) -> dt.date:
+    
+    now = dt.datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+    adj_end = valtime_end
+    
+    if isinstance(valtime_end, dt.date):
+        #assume last hour on the date
+        adj_end = dt.datetime.combine(valtime_end, dt.time(hour=23))
+    else:
+        adj_end = valtime_end
+        
+    if adj_end > now:
+        adj_end = now - dt.timedelta(hours=1)
+        if 'extend' in configuration:
+            if now.hour < 19:
+                adj_end = (now - dt.timedelta(days=2))
+            else:
+                adj_end = (now - dt.timedelta(days=1))
+    
+    return adj_end.date()
+    
+def add_valtime_hour(
+    valtime_end: dt.date,
+    ) -> dt.date:
+    
+    now = dt.datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+    adj_end = dt.datetime.combine(valtime_end, dt.time(hour=now.hour-1))
     
     return adj_end
-    
-def get_nwm_dates_from_event_dates(
+
+def list_nwm_dates_for_event_dates(
+    event_start_date: dt.date,
+    event_end_date: dt.date,
+    ) -> dict[dt.datetime]:
+
+    now = dt.datetime.utcnow().replace(minute=0, second=0, microsecond=0)
+        
+    srf = get_nwm_dates_for_event_dates('short_range', event_start_date, event_end_date)
+    srf_val_time_end = srf['reference_time_end'] + dt.timedelta(hours=18)
+    mrf = get_nwm_dates_for_event_dates('medium_range_mem1', event_start_date, event_end_date)
+    mrf_val_time_end = mrf['reference_time_end'] + dt.timedelta(days=10)
+
+    if srf_val_time_end > now:
+        srf_val_time_end = now
+    if mrf_val_time_end > now:
+        mrf_val_time_end = now
+
+    date_strings = dict( 
+        srf_ref = f"Short range forecasts references times that overlap with event dates (through current): {srf['reference_time_start']} through {srf['reference_time_end']}",
+        srf_val = f"Short range forecasts valid times that overlap with event dates (through current): {srf['reference_time_start']} through {srf_val_time_end}",
+        mrf_ref = f"Medium range forecasts that overlap with event dates (through current): {mrf['reference_time_start']} through {mrf['reference_time_end']}",
+        mrf_val = f"Medium range forecasts valid times that overlap with event dates (through current): {mrf['reference_time_start']} through {mrf_val_time_end}")
+
+    return date_strings
+
+
+def get_nwm_dates_for_event_dates(
     configuration: str,
     event_start_date: dt.date,
     event_end_date: dt.date,
     ) -> dict[dt.datetime]:
-    
-    # first validate start/end dates
-    validate_dates(event_start_date, event_end_date)
-    
+
     # get dates
     if configuration == 'medium_range_mem1':
         reference_time_start = dt.datetime.combine(event_start_date, dt.time(hour=0)) - dt.timedelta(days=10)
@@ -2686,8 +2783,8 @@ def get_nwm_dates_from_event_dates(
         reference_time_end = dt.datetime.combine(event_end_date, dt.time(hour=23))
         reference_time_end = reference_time_end.replace(hour=23)
         
-    adj_ref_end = adj_time_end(configuration, reference_time_end)
-    reference_n_days = (adj_ref_end - reference_time_start.date()).days + 1  
+    adj_ref_end = adj_reftime_end(configuration, reference_time_end)
+    reference_n_days = (adj_ref_end - reference_time_start).days + 1  
     
     value_time_start = reference_time_start
     value_time_end = get_last_value_time(adj_ref_end, configuration)
@@ -2701,44 +2798,26 @@ def get_nwm_dates_from_event_dates(
         value_time_start = value_time_start,
         value_time_end = value_time_end,
         value_n_days = value_n_days
-    )
-    print(f"All forecasts that overlap with event dates from {event_start_date} through {event_end_date} will be loaded. \nThis includes {configuration} forecasts with reference times on {reference_time_start} through {reference_time_end}")
+    )    
+
+    return nwm_dates
+
+def get_load_dates_from_event_dates(
+    configuration: str,
+    start_date: dt.date,
+    end_date: dt.date,
+    ) -> dict[dt.datetime]:
+
+    nwm_dates = get_nwm_dates_from_event_dates(configuration, start_date, end_date)
+    
+    print(f"Forecasts that overlap with event dates {event_start_date} through {event_end_date} will be loaded. \nThis includes {configuration} forecasts with reference times on \
+    {nwm_dates['reference_time_start']} through {nwm_dates['reference_time_end']}")
           
     now = dt.datetime.now()
     if reference_time_end > now or value_time_end > now:
         print(f"\033[1m!Warning\033[0m - Some forecasts and/or observations are in the future. Only available data will be loaded (return to load more later)\n") 
     else:
         print("\n")
-    
-    return nwm_dates 
-
-def get_nwm_dates_from_ref_dates(
-    configuration: str,
-    start_date: dt.date,
-    end_date: dt.date,
-    ) -> dict[dt.datetime]:
-    
-    # first validate start/end dates
-    validate_dates(start_date, end_date)
-    
-    # get dates
-    reference_time_start = dt.datetime.combine(start_date, dt.time(hour=0))
-    reference_time_end = get_last_ref_time(end_date, configuration)
-    reference_n_days = (end_date - start_date).days + 1   
-    value_time_start = dt.datetime.combine(start_date, dt.time(hour=0))
-    value_time_end = get_last_value_time(end_date, configuration)
-    value_n_days = (value_time_end - value_time_start).days + 1    
-    
-    # store in dictionary
-    nwm_dates = dict(
-        reference_time_start = reference_time_start,
-        reference_time_end = reference_time_end,
-        reference_n_days = reference_n_days,
-        value_time_start = value_time_start,
-        value_time_end = value_time_end,
-        value_n_days = value_n_days
-    )
-    print(f"{reference_n_days} days selected - data will be included corresponding to {configuration} reference times from {reference_time_start} through {reference_time_end}")
     
     return nwm_dates 
  
@@ -2775,8 +2854,12 @@ def get_last_value_time(date: dt.date, config: str) -> dt.datetime:
 
 def validate_dates(
     start_date: Union[dt.date, dt.datetime], 
-    end_date: Union[dt.date, dt.datetime]
+    end_date: Union[dt.date, dt.datetime],
+    configuration: str,
+    date_type: str,
     ):
+    
+    adj_end = end_date
     
     if start_date is None or end_date is None:
         raise ValueError(f"Dates must be selected: start date is {start_date}, end date is {end_date}")
@@ -2784,12 +2867,25 @@ def validate_dates(
     if start_date > end_date:
         raise ValueError(f"Invalid dates selected: start date {start_date} is greater than end date {end_date}")
     
-#    if start_date > dt.datetime.now().date():
-#        raise ValueError(f"Invalid dates selected: Start date {start_date} cannot be in the future")
+    if start_date > dt.datetime.now().date():
+        raise ValueError(f"Invalid dates selected: Start date {start_date} cannot be in the future")
  
-#    if end_date > dt.datetime.now().date():
-#        raise ValueError(f"Invalid dates selected: End date {end_date} cannot be in the future")
-        
+    if end_date > dt.datetime.now().date():
+    
+        if date_type == 'reference':
+            print(f'Warning! Requested reference end date {end_date} is in the future and has been adjusted to today')
+            adj_end = adj_reftime_end(end_date, configuration)
+        else:
+            print(f'Warning! Requested valid end date {end_date} is in the future and has been adjusted to today')
+            adj_end = adj_valtime_end(end_date, configuration)   
+            
+    elif end_date == dt.datetime.now().date() and 'extend' in configuration:
+        adj_end = adj_valtime_end(end_date, configuration) 
+            
+    print(f"{date_type} start date: {start_date}, end date: {adj_end}")
+            
+    return adj_end
+    
 def get_n_obs_days_minus_future(
     start_date: Union[dt.date, dt.datetime], 
     n_days: int,
@@ -2808,5 +2904,75 @@ def get_nwm_conus_forecast_configs() -> list:
     'medium_range_mem1',
     ]
     return nwm_conus_forecast_configs
+
+def select_event_widgets(huc2_gdf, states_gdf, existing_events, select_event_name):
+
+    if select_event_name.value == 'define new event':
+        event_specs = get_default_event()
+        selected_huc2s = []
+    else:
+        event_specs = get_existing_event(existing_events, select_event_name)
+        selected_huc2s = huc2_gdf.loc[event_specs['huc2_list']]
         
+    # create selectable map and selection widgets
+    
+    huc2s = gv.Polygons(huc2_gdf, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
+    selected_huc2s = gv.Polygons(selected_huc2s, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
+    states = gv.Polygons(states_gdf, vdims=['STUSPS'], crs=ccrs.GOOGLE_MERCATOR)   
+    selection = hv.streams.Selection1D(source=huc2s)
+    
+    widgets = {
+        'event_name_input' : pn.widgets.TextInput(name='Event name (YYYYMM_name):', placeholder='YYYYMM_name', value=event_specs['name']),
+        'start_picker' : pn.widgets.DatePicker(name='Event Start Date:', value=event_specs['start_date']),
+        'end_picker' : pn.widgets.DatePicker(name='Event End Date:', value=event_specs['end_date']),
+        'lat_slider' : pn.widgets.IntRangeSlider(name='Additional Latitude Limits [optional]  ', 
+                                           start=event_specs['lat_limits'][0], end=event_specs['lat_limits'][1], step=1),
+        'lon_slider' : pn.widgets.IntRangeSlider(name='Additional Longitude Limits [optional]  ', 
+                                           start=event_specs['lon_limits'][0], end=event_specs['lon_limits'][1], step=1),
+         }
+
+    event_panel = pn.Column(
+        pn.pane.HTML("Event Region and Dates:", styles={'font-size': '15px', 'font-weight': 'bold'}),
+        pn.Row(
+            pn.Column(widgets['event_name_input'], pn.Spacer(height=10), widgets['start_picker'], widgets['end_picker'], pn.Spacer(height=10), widgets['lat_slider'], widgets['lon_slider']),
+            states.opts(color_index=None, fill_color='lightgray', nonselection_alpha=1, line_color='white', tools=[''], 
+                        title='Select one or more HUC2 regions (hold shift to select multiple)', fontsize=12) \
+            * huc2s.opts(color_index=None, fill_color='none', width=700, height=450, tools=['hover', 'tap'], selection_line_width=4) \
+            * selected_huc2s.opts(color_index=None, fill_color='none', line_color='red', line_width=3),
+        )    
+    )   
+    
+    return event_panel, widgets, selection
+    
+
+def select_data_widgets():
+
+    widgets = {
+        'select_forecast_config' : pn.widgets.MultiSelect(name='NWM Forecast Configuration', 
+                                                        options=['none','short_range','medium_range_mem1'],
+                                                        value=['short_range']
+                                                       ),
+        'select_ref_start' : pn.widgets.DatePicker(name='First Ref/Issue Date to Load:', value=dt.datetime.utcnow().date()),
+        'select_ref_end' : pn.widgets.DatePicker(name='Last Ref/Issue Date to Load:', value=dt.datetime.utcnow().date()),
+        'select_reach_set' : pn.widgets.Select(name='NWM Reach set:', options=['gaged reaches','all reaches']),
+        'select_observed_source' : pn.widgets.MultiSelect(name='Analysis/Observed Source(s)', 
+                                                        options=['none', 'USGS*','analysis_assim_extend', 'analysis_assim', 'analysis_assim_extend_no_da', 'analysis_assim_no_da'], 
+                                                        value=['USGS*','analysis_assim_extend']),
+        'select_value_start' : pn.widgets.DatePicker(name='First Value Date to Load:', value=dt.datetime.utcnow().date()),
+        'select_value_end' : pn.widgets.DatePicker(name='Last Value Date to Load:', value=dt.datetime.utcnow().date())
+    }
+
+    
+    data_panel = pn.Column(
+            pn.pane.HTML("Define the data to load:", styles={'font-size': '15px', 'font-weight': 'bold'}),
+            pn.Row(
+                pn.Column(widgets['select_forecast_config'], widgets['select_ref_start'], widgets['select_ref_end']),
+                pn.Column(widgets['select_observed_source'], widgets['select_value_start'], widgets['select_value_end'],
+                         pn.pane.HTML("*USGS and no_da ignored for forcing", styles={'font-size': '12px'})),
+                widgets['select_reach_set'],
+            ),
+            pn.Spacer(height=25)
+    )
+    
+    return data_panel, widgets
         
