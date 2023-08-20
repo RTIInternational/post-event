@@ -2706,7 +2706,7 @@ def adj_reftime_end(
         elif configuration == 'short_range':
             adj_end = now - dt.timedelta(hours=2)
     
-    return adj_end.date()
+    return adj_end
     
 def adj_valtime_end(
     valtime_end: dt.date,
@@ -2730,7 +2730,7 @@ def adj_valtime_end(
             else:
                 adj_end = (now - dt.timedelta(days=1))
     
-    return adj_end.date()
+    return adj_end
     
 def add_valtime_hour(
     valtime_end: dt.date,
@@ -2760,9 +2760,9 @@ def list_nwm_dates_for_event_dates(
 
     date_strings = dict( 
         srf_ref = f"Short range forecasts references times that overlap with event dates (through current): {srf['reference_time_start']} through {srf['reference_time_end']}",
-        srf_val = f"Short range forecasts valid times that overlap with event dates (through current): {srf['reference_time_start']} through {srf_val_time_end}",
+        srf_val = f"Short range forecasts valid times that overlap with event dates (through current): {srf['value_time_start']} through {srf_val_time_end}",
         mrf_ref = f"Medium range forecasts that overlap with event dates (through current): {mrf['reference_time_start']} through {mrf['reference_time_end']}",
-        mrf_val = f"Medium range forecasts valid times that overlap with event dates (through current): {mrf['reference_time_start']} through {mrf_val_time_end}")
+        mrf_val = f"Medium range forecasts valid times that overlap with event dates (through current): {mrf['value_time_start']} through {mrf_val_time_end}")
 
     return date_strings
 
@@ -2783,21 +2783,17 @@ def get_nwm_dates_for_event_dates(
         reference_time_end = dt.datetime.combine(event_end_date, dt.time(hour=23))
         reference_time_end = reference_time_end.replace(hour=23)
         
-    adj_ref_end = adj_reftime_end(configuration, reference_time_end)
-    reference_n_days = (adj_ref_end - reference_time_start).days + 1  
+    adj_ref_end = adj_reftime_end(reference_time_end, configuration)
     
     value_time_start = reference_time_start
-    value_time_end = get_last_value_time(adj_ref_end, configuration)
-    value_n_days = (value_time_end - value_time_start).days + 1       
+    value_time_end = get_last_value_time(adj_ref_end, configuration)      
     
     # store in dictionary
     nwm_dates = dict(
         reference_time_start = reference_time_start,
         reference_time_end = adj_ref_end,
-        reference_n_days = reference_n_days,
         value_time_start = value_time_start,
         value_time_end = value_time_end,
-        value_n_days = value_n_days
     )    
 
     return nwm_dates
@@ -2926,9 +2922,12 @@ def select_event_widgets(huc2_gdf, states_gdf, existing_events, select_event_nam
         'start_picker' : pn.widgets.DatePicker(name='Event Start Date:', value=event_specs['start_date']),
         'end_picker' : pn.widgets.DatePicker(name='Event End Date:', value=event_specs['end_date']),
         'lat_slider' : pn.widgets.IntRangeSlider(name='Additional Latitude Limits [optional]  ', 
-                                           start=event_specs['lat_limits'][0], end=event_specs['lat_limits'][1], step=1),
+                                           start=20, end=55, step=1,
+                                           value=tuple(event_specs['lat_limits']))
+                                           ,
         'lon_slider' : pn.widgets.IntRangeSlider(name='Additional Longitude Limits [optional]  ', 
-                                           start=event_specs['lon_limits'][0], end=event_specs['lon_limits'][1], step=1),
+                                           start=-130, end=-60, step=1,
+                                           value=tuple(event_specs['lon_limits']))        
          }
 
     event_panel = pn.Column(
