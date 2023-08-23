@@ -2906,17 +2906,8 @@ def get_nwm_conus_forecast_configs() -> list:
     return nwm_conus_forecast_configs
 
 def select_event_widgets(
-    huc2_gdf: gpd.GeoDataFrame, 
-    existing_events: dict, 
-    select_event_name: pn.widgets.Select,
+    event_specs: dict
 ) -> dict:
-
-    if select_event_name.value == 'define new event':
-        event_specs = get_default_event()
-        selected_huc2s = []
-    else:
-        event_specs = get_existing_event(existing_events, select_event_name)
-        selected_huc2s = huc2_gdf.loc[event_specs['huc2_list']]
         
     # create selectable map and selection widgets
     widgets = {
@@ -2937,11 +2928,18 @@ def create_event_panel(
     huc2_gdf: gpd.GeoDataFrame,
     states_gdf: gpd.GeoDataFrame, 
     existing_events: dict, 
-    select_event_name: pn.widgets.Select,
+    select_event_name: pn.widgets.Select,   
 ):
 
-    widgets = select_event_widgets(huc2_gdf, existing_events, select_event_name)
-    
+    if select_event_name.value == 'define new event':
+        event_specs = get_default_event()
+        selected_huc2s = []
+    else:
+        event_specs = get_existing_event(existing_events, select_event_name)
+        selected_huc2s = huc2_gdf.loc[event_specs['huc2_list']]
+
+    widgets = select_event_widgets(event_specs)
+  
     huc2s = gv.Polygons(huc2_gdf, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
     selected_huc2s = gv.Polygons(selected_huc2s, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
     states = gv.Polygons(states_gdf, vdims=['STUSPS'], crs=ccrs.GOOGLE_MERCATOR)   
