@@ -79,8 +79,11 @@ def run_teehr_query(
     
     # region (HUC) id
     if huc_id is not None:
-        if huc_id != 'all':
-            huc_level = len(huc_id)
+        if 'all' not in huc_id:
+            if type(huc_id) == list:
+                huc_level = len(huc_id[0])
+            else:
+                huc_level = len(huc_id)
 
             # if usgs, get the crosswalk (for now huc level must be 10 or smaller)
             if primary_filepath.parent.name == 'usgs':
@@ -386,7 +389,7 @@ def get_parquet_value_time_list(
 
 def get_usgs_locations_within_huc(
     huc_level: int = 2,
-    huc_id: str = '01', 
+    huc_id: Union[list[str], str] = '01', 
     attribute_paths: dict = {},
 ) -> List[str]:
     
@@ -395,8 +398,8 @@ def get_usgs_locations_within_huc(
         df = pd.read_parquet(attribute_paths["usgs_huc_crosswalk"])
         df['huc'] = df['secondary_location_id'].str[6:6+huc_level]
         
-        if huc_id != 'all':
-            location_list = df[df['huc']==huc_id]['primary_location_id'].to_list()
+        if 'all' not in huc_id:
+            location_list = df[df['huc'].isin(huc_id)]['primary_location_id'].to_list()
         else:
             location_list = df['primary_location_id'].to_list()
         
@@ -686,12 +689,13 @@ def get_lead_time_selector() -> pn.widgets.Select:
     return lead_time_selector
 
 
-def get_huc2_selector() -> pn.widgets.Select:
+def get_huc2_selector(value: list = ["all"]) -> pn.widgets.Select:
     '''
     HUC2 region to explore, enables smaller region for faster responsiveness
     '''
     huc2_list = ["all"] + [str(huc2).zfill(2) for huc2 in list(range(1,19))]
-    huc2_selector = pn.widgets.Select(name='HUC-2 Subregion', options=huc2_list, value="all", width_policy="fit")
+    
+    huc2_selector = pn.widgets.MultiSelect(name='HUC-2 Subregion(s)', options=huc2_list, value=value, width_policy="fit")
     
     return huc2_selector      
 
@@ -2722,7 +2726,7 @@ def adj_valtime_end(
     else:
         adj_end = valtime_end
         
-    if adj_end > now:
+    if adj_end >= now:
         adj_end = now - dt.timedelta(hours=1)
         if 'extend' in configuration:
             if now.hour < 19:
@@ -2901,7 +2905,11 @@ def get_nwm_conus_forecast_configs() -> list:
     ]
     return nwm_conus_forecast_configs
 
-def select_event_widgets(huc2_gdf, states_gdf, existing_events, select_event_name):
+def select_event_widgets(
+    huc2_gdf: gpd.GeoDataFrame, 
+    existing_events: dict, 
+    select_event_name: pn.widgets.Select,
+) -> dict:
 
     if select_event_name.value == 'define new event':
         event_specs = get_default_event()
@@ -2911,29 +2919,39 @@ def select_event_widgets(huc2_gdf, states_gdf, existing_events, select_event_nam
         selected_huc2s = huc2_gdf.loc[event_specs['huc2_list']]
         
     # create selectable map and selection widgets
-    
-    huc2s = gv.Polygons(huc2_gdf, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
-    selected_huc2s = gv.Polygons(selected_huc2s, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
-    states = gv.Polygons(states_gdf, vdims=['STUSPS'], crs=ccrs.GOOGLE_MERCATOR)   
-    selection = hv.streams.Selection1D(source=huc2s)
-    
     widgets = {
         'event_name_input' : pn.widgets.TextInput(name='Event name (YYYYMM_name):', placeholder='YYYYMM_name', value=event_specs['name']),
         'start_picker' : pn.widgets.DatePicker(name='Event Start Date:', value=event_specs['start_date']),
         'end_picker' : pn.widgets.DatePicker(name='Event End Date:', value=event_specs['end_date']),
         'lat_slider' : pn.widgets.IntRangeSlider(name='Additional Latitude Limits [optional]  ', 
                                            start=20, end=55, step=1,
-                                           value=tuple(event_specs['lat_limits']))
-                                           ,
+                                           value=tuple(event_specs['lat_limits'])),
         'lon_slider' : pn.widgets.IntRangeSlider(name='Additional Longitude Limits [optional]  ', 
                                            start=-130, end=-60, step=1,
                                            value=tuple(event_specs['lon_limits']))        
          }
 
+    return widgets
+
+def create_event_panel(
+    huc2_gdf: gpd.GeoDataFrame,
+    states_gdf: gpd.GeoDataFrame, 
+    existing_events: dict, 
+    select_event_name: pn.widgets.Select,
+):
+
+    widgets = select_event_widgets(huc2_gdf, existing_events, select_event_name)
+    
+    huc2s = gv.Polygons(huc2_gdf, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
+    selected_huc2s = gv.Polygons(selected_huc2s, vdims=['huc2'],crs=ccrs.GOOGLE_MERCATOR)
+    states = gv.Polygons(states_gdf, vdims=['STUSPS'], crs=ccrs.GOOGLE_MERCATOR)   
+    selection = hv.streams.Selection1D(source=huc2s)
+    
     event_panel = pn.Column(
         pn.pane.HTML("Event Region and Dates:", styles={'font-size': '15px', 'font-weight': 'bold'}),
         pn.Row(
-            pn.Column(widgets['event_name_input'], pn.Spacer(height=10), widgets['start_picker'], widgets['end_picker'], pn.Spacer(height=10), widgets['lat_slider'], widgets['lon_slider']),
+            pn.Column(widgets['event_name_input'], pn.Spacer(height=10), widgets['start_picker'], widgets['end_picker'], 
+                      pn.Spacer(height=10), widgets['lat_slider'], widgets['lon_slider']),
             states.opts(color_index=None, fill_color='lightgray', nonselection_alpha=1, line_color='white', tools=[''], 
                         title='Select one or more HUC2 regions (hold shift to select multiple)', fontsize=12) \
             * huc2s.opts(color_index=None, fill_color='none', width=700, height=450, tools=['hover', 'tap'], selection_line_width=4) \
@@ -2944,7 +2962,10 @@ def select_event_widgets(huc2_gdf, states_gdf, existing_events, select_event_nam
     return event_panel, widgets, selection
     
 
-def select_data_widgets():
+
+
+
+def select_data_widgets(huc2_gdf, existing_events, select_event_name):
 
     widgets = {
         'select_forecast_config' : pn.widgets.MultiSelect(name='NWM Forecast Configuration', 
@@ -2960,8 +2981,7 @@ def select_data_widgets():
         'select_value_start' : pn.widgets.DatePicker(name='First Value Date to Load:', value=dt.datetime.utcnow().date()),
         'select_value_end' : pn.widgets.DatePicker(name='Last Value Date to Load:', value=dt.datetime.utcnow().date())
     }
-
-    
+   
     data_panel = pn.Column(
             pn.pane.HTML("Define the data to load:", styles={'font-size': '15px', 'font-weight': 'bold'}),
             pn.Row(
@@ -2974,4 +2994,4 @@ def select_data_widgets():
     )
     
     return data_panel, widgets
-        
+
