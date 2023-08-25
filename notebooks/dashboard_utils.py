@@ -79,12 +79,13 @@ def run_teehr_query(
     
     # region (HUC) id
     if huc_id is not None:
+        if type(huc_id) == list:
+            huc_level = len(huc_id[0])
+        else:
+            huc_level = len(huc_id)
+            huc_id = [huc_id]
+        
         if 'all' not in huc_id:
-            if type(huc_id) == list:
-                huc_level = len(huc_id[0])
-            else:
-                huc_level = len(huc_id)
-
             # if usgs, get the crosswalk (for now huc level must be 10 or smaller)
             if primary_filepath.parent.name == 'usgs':
                 location_list = get_usgs_locations_within_huc(huc_level, huc_id, attribute_paths)
@@ -107,11 +108,12 @@ def run_teehr_query(
                     } 
                 )
             elif primary_filepath.parent.name in ['forcing_analysis_assim','forcing_analysis_assim_extend']:
+                for huc_id_x in huc_id:    
                     filters.append(
                         {
                             "column": "primary_location_id",
                             "operator": "like",
-                            "value": f"huc10-{huc_id}%"
+                            "value": f"huc10-{huc_id_x}%"
                         }
                     )
 
@@ -257,8 +259,9 @@ def run_teehr_query(
             geometry_filepath=geometry_filepath,       
             include_geometry=include_geometry,
         )     
-        
-    gdf = gdf.sort_values(order_by)
+
+    if type(gdf) != str:
+        gdf = gdf.sort_values(order_by)
 
     return gdf
 
@@ -471,6 +474,20 @@ def get_scenario(
         
     return scenario
 
+def get_scenarios_by_config(
+    scenario_definitions: List[dict],
+    config_name: Union[str, None] = None,
+) -> Union[List[dict], dict]:
+    
+    scenarios=[]
+    for scenario_i in scenario_definitions:
+        if config_name is not None:
+            if scenario_i["nwm_config"] == config_name:
+                scenarios.append(scenario_i)                          
+        
+    return scenarios
+
+
 
 def get_scenario_names(scenario_definitions: List[dict]) -> List[str]:
     
@@ -480,6 +497,15 @@ def get_scenario_names(scenario_definitions: List[dict]) -> List[str]:
             scenario_name_list.append(scenario["scenario_name"])
     
     return scenario_name_list
+
+def get_config_names(scenario_definitions: List[dict]) -> List[str]:
+    
+    config_name_list = []
+    for scenario in scenario_definitions:
+        if scenario['nwm_config'] not in config_name_list:
+            config_name_list.append(scenario['nwm_config'])
+    
+    return config_name_list
 
 
 def get_scenario_variables(scenario_definitions: List[dict]) -> List[str]:
@@ -550,6 +576,51 @@ def get_reference_time_player_selected_dates(
         pathlist = [scenario["primary_filepath"], scenario["secondary_filepath"]]
         
     reference_times = get_parquet_date_list_across_scenarios(pathlist, date_type = "reference_time")
+
+    reference_times_in_event = [t for t in reference_times if t >= start and t <= end]
+    reference_time_player = pn.widgets.DiscretePlayer(name='Discrete Player', 
+                                                      options=list(reference_times_in_event), 
+                                                      value=reference_times_in_event[0], 
+                                                      interval=5000,
+                                                      show_loop_controls = False,
+                                                      width_policy="fit",
+                                                      margin=0,
+                                                      **opts,
+                                                      )   
+    return reference_time_player
+
+def get_reference_time_player_selected_dates_2(
+    scenario: Union[dict, List[dict]] = {},
+    start: pd.Timestamp = None,
+    end: pd.Timestamp = None,
+    opts: dict = {},
+) -> pn.widgets.DiscretePlayer:
+    
+    # checking reference times based on forecasts (secondary), and corresponding valid times in obs (primary)
+    
+    #ref_start = datetime.combine(start, 
+    
+    if type(scenario) is list:
+        prim_pathlist = []
+        sec_pathlist = []
+        for scenario_i in scenario:
+            sec_pathlist.extend([scenario_i["secondary_filepath"]])  #forecasts
+            prim_pathlist.extend([scenario_i["primary_filepath"]])   #obs
+    else:
+        sec_pathlist = [scenario["secondary_filepath"]]
+        prim_pathlist = [scenario["primary_filepath"]]
+        
+    reference_times = get_parquet_date_list_across_scenarios(sec_pathlist, date_type = "reference_time")
+    value_times = get_parquet_date_list_across_scenarios(prim_pathlist, date_type = "value_time")
+    
+    config = scenario['nwm_config']
+    val_start = start
+    val_end = get_last_value_time(get_last_ref_time(end, config), config) 
+
+    print(start, type(start))
+    print(end, type(end))
+    print(val_start, type(val_start))
+    print(val_end, type(val_end))
 
     reference_times_in_event = [t for t in reference_times if t >= start and t <= end]
     reference_time_player = pn.widgets.DiscretePlayer(name='Discrete Player', 
@@ -774,6 +845,15 @@ def get_scenario_selector(scenario_name_list: List[str]) -> pn.widgets.Select:
                                           width_policy="fit")
     
     return scenario_selector
+
+def get_config_selector(config_name_list: List[str]) -> pn.widgets.Select:
+    
+    config_selector = pn.widgets.Select(name='NWM Configuration', 
+                                          options=config_name_list, 
+                                          value=config_name_list[0], 
+                                          width_policy="fit")
+    
+    return config_selector
 
 
 def get_multi_metric_selector(
@@ -1158,6 +1238,31 @@ def convert_depth_to_in(
         converted_values = values / 25.4       
     return converted_values 
 
+
+def convert_rate_to_depth(
+    units: str, 
+    values: pd.Series,
+) -> pd.Series:
+    
+    # assume hourly timesteps for now
+    if units in ['mm s^-1','mm/s','in s^-1', 'in/s']:
+        converted_values = values * 3600
+    else: #assume already depth
+        converted_values = values
+        
+    return converted_values
+
+def get_depth_units(units: str) -> str:
+        
+    if units in ['mm s^-1','mm/s']:
+        new_units = 'mm'
+    elif units in ['in s^-1', 'in/s']:
+        new_units = 'in'
+    else:  #already depth
+        new_units = units
+  
+    return new_units
+
         
 def convert_query_to_viz_units(
     gdf: Union[pd.DataFrame, gpd.GeoDataFrame], 
@@ -1201,12 +1306,16 @@ def convert_query_to_viz_units(
         if viz_units == 'english':
             for col in gdf.columns:
                 if col in convert_columns:
-                    gdf[col] = convert_depth_to_in(measurement_unit, gdf[col])
+                    gdf[col] = convert_rate_to_depth(measurement_unit, gdf[col])
+                    depth_measurement_unit = get_depth_units(measurement_unit)
+                    gdf[col] = convert_depth_to_in(depth_measurement_unit, gdf[col])
             gdf['measurement_unit'] = 'in/hr'
         elif viz_units == 'metric':
             for col in gdf.columns:
                 if col in convert_columns:
-                    gdf[col] = convert_depth_to_mm(measurement_unit, gdf[col])  
+                    gdf[col] = convert_rate_to_depth(measurement_unit, gdf[col])
+                    depth_measurement_unit = get_depth_units(measurement_unit)
+                    gdf[col] = convert_depth_to_mm(depth_measurement_unit, gdf[col])                   
             gdf['measurement_unit'] = 'mm/hr'        
 
     return gdf
@@ -2802,6 +2911,33 @@ def get_nwm_dates_for_event_dates(
 
     return nwm_dates
 
+
+def get_nwm_dates_for_reference_dates(
+    configuration: str,
+    ref_start_date: dt.date,
+    ref_end_date: dt.date,
+    ) -> dict[dt.datetime]:
+
+    # adjust if needed based on current time
+    adj_ref_end = adj_reftime_end(ref_end_date, configuration)
+    adj_ref_end = validate_dates(ref_start_date, ref_end_date, configuration, "reference")
+    
+    # get corresponding value times
+    value_time_start = ref_start_date
+    value_time_end = get_last_value_time(adj_ref_end, configuration)    
+    adj_val_end = adj_valtime_end(value_time_end, configuration) 
+    
+    # store in dictionary
+    nwm_dates = dict(
+        reference_time_start = ref_start_date,
+        reference_time_end = adj_ref_end,
+        value_time_start = value_time_start,
+        value_time_end = adj_val_end,
+    )    
+    
+    return nwm_dates
+
+
 def get_load_dates_from_event_dates(
     configuration: str,
     start_date: dt.date,
@@ -2963,7 +3099,7 @@ def create_event_panel(
 
 
 
-def select_data_widgets(huc2_gdf, existing_events, select_event_name):
+def select_data_widgets():
 
     widgets = {
         'select_forecast_config' : pn.widgets.MultiSelect(name='NWM Forecast Configuration', 
