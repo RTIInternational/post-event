@@ -9,7 +9,7 @@
     "GEO_FILES_CONUS": {
         "STATES": "states_geometry.conus.parquet",
         "USGS_POINTS": "usgs_point_geometry.conus.parquet",
-        "USGS_BASINS": "usgs_gage_basins.parquet",
+        "USGS_BASINS": "usgs_basins_geometry.all.parquet",
         "HUC2": "huc2_geometry.conus.parquet",
         "HUC10": "huc10_geometry.conus.parquet",
         "NWM22_CENTROIDS": "nwm22_centroid_geometry.conus.parquet"
