@@ -25,10 +25,16 @@ Clone the teehr-post-event repo
 $ mkdir ~/my_working_dir  
 $ cd my_working_dir
 ```
-- Clone the teehr-post-event repo
+- Clone the teehr-post-event repo and change into it
 ```bash
 $ git clone https://github.com/RTIInternational/teehr-post-event.git
+$ cd teehr-post-event
 ```
+Copy the sample configuration file (contents will work as-is on TEEHR Hub)
+```bash
+$ cp ./config/post_event_config_sample.json ./config/post_event_config.json
+```
+
 Open a teehr-post-event notebook and begin working:
 - Open the JupyterLab File Browser by clicking on the file symbol in the far left vertical toolbar
 - Navigate into the repo directory in the File Browser panel (i.e. ~my_working_dir/teehr-post-event/)
@@ -51,8 +57,7 @@ cd teehr-post-event
 ```
 Copy the sample configuration file:
 ```bash
-$ cd teehr-post-event/config
-$ cp sample.json local_config.json
+$ cp ./config/post_event_config_sample.json ./config/post_event_config.json
 ```
 Edit the contents of the config file with your local root data directory, e.g.:
 ```bash
