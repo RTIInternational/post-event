@@ -1,0 +1,28 @@
+{
+    "PROTOCOL_NAME": "post-event",
+    "TEEHR_ROOT_LOCAL": "C:/data",
+    "TEEHR_ROOT_TEEHRHUB": "/data",
+    "TEEHR_GEO_DIR": "geo",
+    "TEEHR_ZARR_DIR": "zarr",
+    "TEEHR_STUDIES_DIR": "events",    
+    "EVENT_DEFINITIONS_FILE": "event_definitions.json",
+    "GEO_FILES_CONUS": {
+        "STATES": "states_geometry.conus.parquet",
+        "USGS_POINTS": "usgs_point_geometry.conus.parquet",
+        "USGS_BASINS": "usgs_gage_basins.parquet",
+        "HUC2": "huc2_geometry.conus.parquet",
+        "HUC10": "huc10_geometry.conus.parquet",
+        "NWM22_CENTROIDS": "nwm22_centroid_geometry.conus.parquet"
+    },
+    "CROSSWALK_FILES_CONUS": {
+        "USGS_HUC12": "usgs_huc12_crosswalk.conus.parquet",
+        "USGS_NWM21": "usgs_nwm22_crosswalk.conus.parquet",
+        "USGS_NWM22": "usgs_nwm22_crosswalk.conus.parquet",
+        "USGS_NWM30": "usgs_nwm30_crosswalk.conus.parquet",
+        "NWM22_HUC12": "nwm22_huc12_crosswalk.conus.parquet"
+    },
+    "GRID_WEIGHTS_FILES_CONUS": {
+        "HUC10_NWM": "huc10_to_nwm_grid_weights.conus.parquet",
+        "USGS_NWM": "usgs_basins_to_nwm_grid_weights.all.parquet"
+    }
+}
