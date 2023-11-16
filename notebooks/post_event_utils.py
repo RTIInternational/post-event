@@ -34,7 +34,6 @@ class Config:
     Main class with subclasses to collect/organize/store 
     data specs, geometry and event specs
     '''
-    
     def __init__(self, config_file):
         
         if config_file is not None:
@@ -58,9 +57,12 @@ class Config:
         self.event = EventSpecs(self) 
         
     def update_event_specs(self, event_selector):
+        '''
+        update event specs after making selections in the event_selector dashboard
+        '''
         selection_index = event_selector.region.stream.index
         prior_selected_huc2_list = event_selector.region.geo.selected_huc2.index.to_list()
-        selected_huc2_list = get_merged_huc2_list(event_selector.region.geo.huc2, selection_index, prior_selected_huc2_list)
+        selected_huc2_list = get_updated_huc2_list(event_selector.region.geo.huc2, selection_index, prior_selected_huc2_list)
         
         self.event.huc2_list = selected_huc2_list
         self.event.lat_limits = event_selector.region.lat_limits
@@ -136,7 +138,11 @@ class Geo:
                 self.selected_huc2=gpd.GeoDataFrame()      
                 
     def write_grid_weights_subset(self, config, polygon_set):
-        
+        '''
+        Create a subset of grid weights to speed up read and processing during MAP calculations.
+        TEEHR preciptation loading and MAP calculations read a weights file from disk to prevent
+        memory issues that would occur is passing in memory for distributed computing). 
+        '''
         if any(s in polygon_set for s in ['huc10','HUC10']):
             grid_weights = pd.read_parquet(Path(config.data.geo_dir, config.json["GRID_WEIGHTS_FILES_CONUS"]["HUC10_NWM"]))
             id_list_with_prefix = config.event.huc10_list
@@ -195,15 +201,14 @@ class RegionSelector(param.Parameterized):
         '''
         Create and update the map overlay of huc2s and lat/lon bounds
         
-        Note about known issue - as currently structured, the map is rerendered whenever lat or lon bounds change
+        Note about known issues - as currently structured, the map is rerendered whenever lat or lon bounds change
         via the slider widget.  This is slow and causes the stream (click-selected huc2s) to be reset to none.  
         Alternative to avoid this is use a dropdown selector to select HUC2, but less useful/appealing option since 
-        users then need to know/remember the HUC2 by number.  Could not figure out how to get it to work with two 
+        users then need to know/remember the HUC2 by number.  Have not yet figured out how to get it to work with two 
         separate reactive functions for each layer (huc2s and lat/lon box) and overlay when building the dashboard 
         (i.e., cannot overlay a pn.Param(..) with another pn.Param(..)
-        Help welcome.
+        Suggestions (via GitHub issue tracker) welcome.
         '''
-        
         if not self.geo.states.empty:
             crs = self.geo.states.crs
         else:
@@ -247,7 +252,12 @@ class EventSelector(param.Parameterized):
 
     @param.depends('button', watch=True)
     def update_event_definitions_file(self):
-        
+        '''
+        Executed when the "update" button is clicked in the event_selector dashboard.
+        Writes new or altered specs to the event_definitions.json file stored on disk 
+        to prevent the need to redefine specs for the same event when loading more data
+        or in the visualization notebooks
+        '''
         self.update_event_specs()
         event_specs_for_json = {
                 'huc2_list': self.config.event.huc2_list,
@@ -269,10 +279,13 @@ class EventSelector(param.Parameterized):
         print(f"{self.config.data.event_defs_path} updated")
     
     def update_event_specs(self):
+        '''
+        Update event specs based on dashboard selections
+        '''
         
         selection_index = self.region.stream.index
         prior_selected_huc2_list = self.region.geo.selected_huc2.index.to_list()
-        selected_huc2_list = get_merged_huc2_list(self.region.geo.huc2, selection_index, prior_selected_huc2_list)
+        selected_huc2_list = get_updated_huc2_list(self.region.geo.huc2, selection_index, prior_selected_huc2_list)
         
         self.config.event.huc2_list = selected_huc2_list
         self.config.event.lat_limits = self.region.lat_limits
@@ -284,9 +297,8 @@ class EventSelector(param.Parameterized):
         
 class DataSelector(param.Parameterized):
     '''
-    Main class for data selector dashboard
+    Main class for data_selector dashboard
     '''
-    
     variable = param.ListSelector(default = ['streamflow'],
                                   objects=['streamflow','mean areal precipitation'])
     forecast_config = param.Selector(objects=['short_range','medium_range_mem1','none'])
@@ -307,7 +319,9 @@ class DataSelector(param.Parameterized):
     data_value_time_end = param.Date(bounds=bounds)
     
     def intialize_dates(self):
-        
+        '''
+        Sets default dates to populate date widgets in the data selector dashboard
+        '''
         now = dt.datetime.utcnow().replace(second=0, microsecond=0, minute=0, hour=0)
 
         self.event_value_time_start = dt.datetime.combine(self.config.event.event_start_date, dt.time(hour=0))
@@ -334,7 +348,10 @@ class DataSelector(param.Parameterized):
             self.data_value_time_end = now
     
     def get_value_times(self):
-        
+        '''
+        Get start and end values times that correspond to all time steps in a given set of 
+        forecasts
+        '''
         now = dt.datetime.utcnow().replace(second=0, microsecond=0, minute=0, hour=0)
         
         if self.forecast_config in ['medium_range','medium_range_mem1']:
@@ -390,7 +407,6 @@ def build_event_selector_dashboard(event_selector):
     '''
     build and combine panel components for event selector dashboard
     '''
-    
     dates_view = pn.Param(
         event_selector,
         widgets={
@@ -450,7 +466,6 @@ def build_data_selector_dashboard(data_selector):
     '''
     build and combine panel components for data selector dashboard
     '''
-    
     data_selector.intialize_dates()
     
     source = pn.Param(
@@ -496,6 +511,8 @@ def build_data_selector_dashboard(data_selector):
     reach_widget = unit.widget('reach_set')
     map_widget = unit.widget('map_polygons')
     
+    # Explanatory footnotes at the bottom of the dashboard change based on source selections
+    # Setting initial footnote values here
     forecast_selected_footnote1 = ' - Default dates are the first and last reference/issue dates of forecasts that overlap the event dates.'
     forecast_selected_footnote2 = ' - All timesteps of the selected forecasts will be loaded.'
     forecast_selected_footnote3 = ' - Observed/analysis data for corresponding valid dates will be loaded.'
@@ -520,18 +537,23 @@ def build_data_selector_dashboard(data_selector):
         value=footnote4,
         styles=footnote_styles, margin=(10,10),
     )
+    # Get initial # of reaches and location footnote text
     if reach_widget.value == 'all reaches':
-        data_selector.config.event.nwm_id_list = get_nwm_id_list_as_int(data_selector.config)
         location_footnote_text = f" ({len(data_selector.config.event.nwm_id_list)} NWM reaches in selected region)"
     else:
-        data_selector.config.event.nwm_id_list = get_nwm_id_list_as_int(data_selector.config, data_selector.config.event.usgs_id_list)
-        location_footnote_text = f" ({len(data_selector.config.event.nwm_id_list)} NWM gaged reaches in selected region)"
+        # if no usgs gages in the region, reset to 'all reaches'
+        if len(data_selector.config.event.usgs_id_list) == 0:
+            reach_widget.value = 'all reaches'
+            location_footnote_text = f" ({len(data_selector.config.event.nwm_id_list)} NWM reaches in selected region)"
+        else:
+            location_footnote_text = f" ({len(data_selector.config.event.nwm_id_list)} NWM gaged reaches in selected region)"
     
     location_footnote = pn.widgets.StaticText(
         value=location_footnote_text,
         styles={'font-size':'10pt'},
         margin=(0,0,20,20),
     )
+    # Get initial # of polygons and polygon footnote text
     if map_widget.value == 'HUC10':
         map_footnote_text = f" ({len(data_selector.config.event.huc10_list)} HUC10 polygons in selected region)"
     else:
@@ -547,7 +569,6 @@ def build_data_selector_dashboard(data_selector):
         styles={'font-size':'10pt'}, 
         margin=(0,0,20,20),
     )  
-
     layout=pn.Column(
         pn.pane.Markdown(f"## Select data to load for event ```{data_selector.config.event.event_name}``` and event dates: ```{data_selector.event_value_time_start.date()}``` to ```{data_selector.event_value_time_end.date()}```."),
         pn.pane.Markdown(f"### Event Dates: {data_selector.event_value_time_start.date()} to {data_selector.event_value_time_end.date()}"), 
@@ -560,7 +581,7 @@ def build_data_selector_dashboard(data_selector):
         pn.Spacer(height=100),
         pn.pane.Markdown("#### ------ (blank space added so date selectors are visible without scrolling the cell) ------")
     )   
-    
+    # update date footnotes if source selections change
     @pn.depends(fcst_widget.param.value, obs_widget.param.value, watch=True)
     def update_footnote_text(fcst_widget, obs_widget):
         data_selector.forecast_config = fcst_widget
@@ -595,6 +616,7 @@ def build_data_selector_dashboard(data_selector):
             footnote3.value = ''
             footnote1.styles = warning_styles
   
+    # update num of reaches and footnote text if reach set changes
     @pn.depends(reach_widget.param.value, watch=True)
     def update_reach_count(reach_widget):
         if reach_widget == 'all reaches':
@@ -603,7 +625,8 @@ def build_data_selector_dashboard(data_selector):
         else:
             data_selector.config.event.nwm_id_list = get_nwm_id_list_as_int(data_selector.config, data_selector.config.event.usgs_id_list)
             location_footnote.value = f" ({len(data_selector.config.event.nwm_id_list)} NWM gaged reaches in selected region)"
-            
+     
+    # update num of reaches and footnote text if polygon set changes
     @pn.depends(map_widget.param.value, watch=True)
     def update_map_count(map_widget):
         if map_widget == 'HUC10':
@@ -611,6 +634,7 @@ def build_data_selector_dashboard(data_selector):
         else:
             map_footnote.value = f" ({len(data_selector.config.event.usgs_id_list)} USGS basins in selected region)"
 
+    # validate and update footnotes (if warning needed) if dates change
     @pn.depends(date_start.param.value, date_end.param.value, watch=True)
     def update_dates(date_start, date_end):
     
@@ -666,7 +690,9 @@ def build_data_selector_dashboard(data_selector):
 def get_nwm_version(
     event: EventSpecs,
 ) -> float:
-    
+    '''
+    Get NWM version based on event dates
+    '''
     version_start = nwm_version(dt.datetime.combine(event.event_start_date, dt.time(hour=0)))
     version_end = nwm_version(dt.datetime.combine(event.event_end_date, dt.time(hour=23)))
     
@@ -686,7 +712,6 @@ def nwm_version(
         - v3.0 begins 9-19-2023 at 12z
         - *code update would be needed for versions prior to 2.0
     '''    
-    
     v21_date = dt.datetime(2021, 4, 20, 14, 0, 0)
     v22_date = dt.datetime(2022, 7, 9, 0, 0, 0)
     v30_date = dt.datetime(2023, 9, 19, 12, 0, 0)
@@ -714,45 +739,47 @@ def read_json_definitions(
             file_contents = file.read()
         parsed_json = json.loads(file_contents)
     except:
-        print("Warning - configuration file not found, returning empty dictionary")
+        if definitions_filepath == 'post_event_config.json':
+            raise OSError(f"{definitions_filepath} not found")
+        else:
+            print(f"{definitions_filepath} not found, no prior events available")
         parsed_json = {}
     
     return parsed_json
 
-def get_merged_huc2_list(
+def get_updated_huc2_list(
     huc2_gdf: gpd.GeoDataFrame, 
     selection_index: List[int], 
     prior_huc2_list: List[str],
 ) -> List[str]:
+    '''
+    Update selected HUC2s 
+        If new HUC2s are selected - use only those
+        Otherwise use the prior selected HUC2s, if any
+    '''
+    selected_huc2_list = huc2_gdf.iloc[selection_index].index.to_list()
     
-    selected_huc2_list = get_selected_huc2_list(huc2_gdf, selection_index)
-    
-    # if no new selection, merged list is the prior list
-    if selected_huc2_list == []:
+    # if no new selection, updated list is the prior list
+    if not selected_huc2_list:
         
-        # if no prior list, merged list is empty
+        # if no prior list, updated list is empty
         if not prior_huc2_list:
-            merged_huc2_list = []
+            updated_huc2_list = []
         else:
-            merged_huc2_list = prior_huc2_list
+            updated_huc2_list = prior_huc2_list
             
-    # if there is a new selection, merged list is the new selections
+    # if there is a new selection, updated list is the new selections
     else:
-        merged_huc2_list = selected_huc2_list
+        updated_huc2_list = selected_huc2_list
 
-    return merged_huc2_list
-
-def get_selected_huc2_list(
-    huc2: gpd.GeoDataFrame,
-    selection_index: List[int],
-    ) -> List[str]:
-        
-    return huc2.iloc[selection_index].index.to_list()
+    return updated_huc2_list
 
 def get_usgs_id_list_as_str(
     config: Config,
     ) -> list[str]:    
-    
+    '''
+    Get a list of USGS IDs as strings and without prefix for input to the USGS data loading function
+    '''
     points_selected_gdf = get_point_features_subset(config, config.geo.usgs_points, config.geo.cross_usgs_huc).to_crs(3857)
     usgs_ids = [s.replace('usgs-','') for s in points_selected_gdf['id']] 
         
@@ -763,19 +790,20 @@ def get_nwm_id_list_as_int(
     usgs_ids: list[str] = [],
     ) -> list[str]:
     '''
-    get list of nwm reaches based on
+    Get a list of NWM feature IDs as integers and without prefix for input to the NWM loading function
+    List is based on
     1) crosswalk to usgs ids (if provided) or
     2) within hucs defined by 'huc2_list' attribute of config.event
     '''
-    
     if usgs_ids:
         usgs_ids_with_prefix = ['-'.join(['usgs', s]) for s in usgs_ids]  
         nwm_ids_with_prefix = get_crosswalked_id_list(usgs_ids_with_prefix, config.geo.cross_usgs_nwm, input_list_column = 'primary_location_id')   
-
     else:
-        print('getting list of all nwm reaches in the defined region...')
+        print('getting list of all nwm reaches in the selected HUC2(s)...')
         huc_gdf = get_hucs_subset(config, huc_level = 10)
         huc10_list = huc_gdf['id'].to_list() 
+        
+        # UPDATE once we have 3.0 geometry created (if different than 2.2)!!!
         
         if config.event.nwm_version in [2.1, 2.2, 3.0]:
             nwm_huc12_crosswalk = pd.read_parquet(Path(config.data.geo_dir, config.json["CROSSWALK_FILES_CONUS"]["NWM22_HUC12"]))
@@ -786,6 +814,7 @@ def get_nwm_id_list_as_int(
         nwm_huc10_crosswalk['secondary_location_id'] = nwm_huc12_crosswalk['secondary_location_id'].str.replace('huc12','huc10').str[:16]
         nwm_ids_with_prefix = get_crosswalked_id_list(huc10_list, nwm_huc10_crosswalk, 'secondary_location_id')       
         
+    # remove the prefix
     nwm_version_prefix = 'nwm' + str(config.event.nwm_version).replace('.','') + '-'
     nwm_ids = list(map(int, [s.replace(nwm_version_prefix,'') for s in nwm_ids_with_prefix]))   
         
@@ -796,7 +825,9 @@ def get_crosswalked_id_list(
     crosswalk: pd.DataFrame,
     input_list_column: str = 'primary_location_id'
     ) -> list:
-      
+    '''
+    Get a list of IDs from one column in a crosswalk based on the other
+    '''    
     if id_list:
         if input_list_column == 'primary_location_id':
             lookup_column = 'secondary_location_id'
@@ -814,7 +845,9 @@ def get_crosswalked_id_list(
 def get_latlon_box(
     config: Config,
     ) -> Polygon:
-    
+    '''
+    Get a rectangular polygon object based on lat/lon limits
+    '''
     box =  Polygon(
         [[config.event.lon_limits[0], config.event.lat_limits[0]], 
          [config.event.lon_limits[0], config.event.lat_limits[1]], 
@@ -828,7 +861,10 @@ def get_point_features_subset(
     config: Config,
     point_gdf: gpd.GeoDataFrame,    
     point_huc12_crosswalk: pd.DataFrame,
-    ) -> gpd.GeoDataFrame:    
+    ) -> gpd.GeoDataFrame:  
+    '''
+    get a subset of points within both the list of HUC2s and lat/lon box 
+    '''
     
     # subset crosswalk by huc2
     huc2_strings = ['-'.join(['huc12', a]) for a in config.event.huc2_list]
@@ -838,16 +874,22 @@ def get_point_features_subset(
     latlon_box = get_latlon_box(config)
     point_gdf_subset = point_gdf[latlon_box.contains(point_gdf['geometry'])]    
     
-     # get the intersection of the two subsets
+    # get the intersection of the two subsets
     point_gdf_subset2 = point_gdf_subset[point_gdf_subset['id'].isin(point_huc12_crosswalk_subset1['primary_location_id'])].copy()
     
-    return point_gdf_subset2 #to_crs(3857)
+    # print warning if there is no intersection, returning empty geodataframe
+    if len(point_huc12_crosswalk_subset1) > 0 and len(point_gdf_subset) > 0 and len(point_gdf_subset2) == 0:
+        print('Warning - no gages found in intersecting area of HUC2s and lat-lon box (or the two do not overlap). Check region selections.')
+    
+    return point_gdf_subset2
 
 def get_hucs_subset(
     config: Config,
     huc_level: int = 10,
     ) -> list:
-    
+    '''
+    get a subset of HUCs (currently HUC10 or 12 available)
+    '''
     huc_attribute = 'huc' + str(huc_level)
     try:
         huc_gdf = getattr(config.geo, huc_attribute)
@@ -890,7 +932,7 @@ def launch_teehr_streamflow_loading(
     data_selector: DataSelector,
 ):
     '''
-    
+    Launch TEEHR loading functions for streamflow data sources based on data selections
     '''
     # only load streamflow data if it is a selected variable
     if 'streamflow' in data_selector.variable:
@@ -911,14 +953,15 @@ def launch_teehr_streamflow_loading(
             ts_dir_config = Path(config.data.ts_dir, data_selector.forecast_config, timeseries_subdir)    
             json_dir_config = Path(config.data.json_dir, data_selector.forecast_config)
             
-            output_label = 'channel_rt'
+            # set and alter the output group if medium range
+            output_group = 'channel_rt'
             if data_selector.forecast_config == 'medium_range_mem1':
-                output_label = 'channel_rt_1'
+                output_group = 'channel_rt_1'
             
             print(f"Loading {data_selector.forecast_config} streamflow for {len(config.event.nwm_id_list)} NWM reaches from {data_selector.ref_time_start} to {data_selector.ref_time_end}")
             tlp.nwm_to_parquet(
                 data_selector.forecast_config,
-                output_label,
+                output_group,
                 'streamflow',
                 data_selector.ref_time_start,
                 n_days,
@@ -933,7 +976,7 @@ def launch_teehr_streamflow_loading(
         if 'USGS*' in data_selector.verify_config:
             t_start = time.time()
             
-            # get sub-directory
+            # get sub-directory then launch loading function
             ts_dir_config = Path(config.data.ts_dir, 'usgs')
             print(f"Loading USGS streamflow for {len(config.event.usgs_id_list)} gages from {data_selector.data_value_time_start} to {data_selector.data_value_time_end}") 
             tlu.usgs_to_parquet(
@@ -947,14 +990,20 @@ def launch_teehr_streamflow_loading(
  
         # load NWM analysis data if selected
         # currently only CONUS!!!
-    
+        
+        # List of valid analysis options for streamflow
         ana_list = ['analysis_assim_extend', 'analysis_assim', 'analysis_assim_extend_no_da*', 'analysis_assim_no_da*']
         n_days = (data_selector.data_value_time_end - data_selector.data_value_time_start).days + 1
+        
+        # loop through analysis types, load any selected
         for ana in ana_list:
             if ana in data_selector.verify_config:
+            
+                # remove * at end of streamflow-only types
                 if ana[-1] == '*':
                     ana = ana[:-1]
                 
+                # set timer, directories, and timestep range to include
                 t_start = time.time()
                 ts_dir_config = Path(config.data.ts_dir, ana, timeseries_subdir)
                 json_dir_config = Path(config.data.json_dir, ana)
@@ -963,6 +1012,7 @@ def launch_teehr_streamflow_loading(
                 else:
                     tm_range = range(0,2)   
 
+                # launch loading function
                 print(f"Loading {ana} streamflow for {len(config.event.nwm_id_list)} NWM reaches from {data_selector.data_value_time_start} to {data_selector.data_value_time_end}")
                 tlp.nwm_to_parquet(
                     ana,
@@ -984,12 +1034,12 @@ def launch_teehr_precipitation_loading(
     data_selector: DataSelector,
 ):
     '''
-    
+    Launch TEEHR loading functions for precipitation data sources based on data selections
     '''
     # only load precipitation data if it is a selected variable
     if 'mean areal precipitation' in data_selector.variable:
         
-        # set a subdirectory name (under forecast/obs config dir) to keep the MAPs for 
+        # set a subdirectory name (under forecast/obs config dir) to keep the parquet files for 
         # different polygon sets separate (HUC10s or USGS basins for now)
         if any(s in data_selector.map_polygons for s in ['huc10','HUC10']):
             timeseries_subdir = 'huc10'
@@ -1000,7 +1050,7 @@ def launch_teehr_precipitation_loading(
             n_polys = len(config.event.usgs_id_list)
             polygon_set = 'USGS basins'
             
-        # valid observed configurations for precipitation
+        # valid analysis configurations for precipitation
         ana_list = ['analysis_assim_extend', 'analysis_assim']
         
         # write subset of weights to temporary file (necessary to avoid memory issues when passing in memory for distributed computing)
@@ -1020,6 +1070,7 @@ def launch_teehr_precipitation_loading(
             ts_dir_config = Path(config.data.ts_dir, forcing_forecast_configuration, timeseries_subdir)    
             json_dir_config = Path(config.data.json_dir, forcing_forecast_configuration)
 
+            # launch the loading function
             print(f"Loading {forcing_forecast_configuration} mean areal precipitation for {n_polys} {polygon_set} from {data_selector.ref_time_start} to {data_selector.ref_time_end}")
             tlg.nwm_grids_to_parquet(
                 forcing_forecast_configuration,
@@ -1034,15 +1085,17 @@ def launch_teehr_precipitation_loading(
             )
             print(f"...{forcing_forecast_configuration} mean areal precipitation loading complete in {round((time.time() - t_start)/60,5)} minutes\n")
         else:
+            # if no forecasts were selected nor any valid analysis type, no data to load - print message
             if not any(s in data_selector.verify_config for s in ana_list):
                 print('No data loaded - no valid datasets selected')
                 
-        ana_list = ['analysis_assim_extend', 'analysis_assim']
+        # loop through selected analysis types
         n_days = (data_selector.data_value_time_end - data_selector.data_value_time_start).days + 1
         for ana in ana_list:          
             if ana in data_selector.verify_config:
                 t_start = time.time()
                 
+                # adjust config name, set directories and timesteps to include
                 forcing_ana_config = 'forcing_' + ana
                 ts_dir_config = Path(config.data.ts_dir, forcing_ana_config, timeseries_subdir)
                 json_dir_config = Path(config.data.json_dir, forcing_ana_config)
@@ -1050,7 +1103,8 @@ def launch_teehr_precipitation_loading(
                     tm_range = range(0,28)
                 else:
                     tm_range = range(0,2)   
-
+                
+                # launch loading function
                 print(f"Loading {ana} mean areal precipitation for {n_polys} {polygon_set} from {data_selector.data_value_time_start} to {data_selector.data_value_time_end}")
                 tlg.nwm_grids_to_parquet(
                     forcing_ana_config,
