@@ -1,0 +1,34 @@
+{
+    "ZARR_DIR": "/data/protocols/p0_post_event/zarr",
+    "EVENTS_DIR": "/data/protocols/p0_post_event/events",
+    "EVENT_DEFINITIONS_FILE": "/data/protocols/p0_post_event/event_definitions.json",  
+    "GEO_DIR": "/data/common/geometry",
+    "CROSSWALK_DIR": "/data/common/crosswalks",
+    "ATTRIBUTE_DIR": "/data/common/attributes",
+    "WEIGHTS_DIR": "/data/common/grid_weights",
+    "GEO_FILES_CONUS": {
+        "STATES": "states_geometry_lowres.all.parquet",
+        "USGS_POINTS": "usgs_point_geometry.all.parquet",
+        "USGS_BASINS": "usgs_basin_geometry.all.parquet",
+        "HUC2": "huc2_geometry.conus.parquet",
+        "HUC10": "huc10_geometry.conus.parquet"
+    },
+    "CROSSWALK_FILES_CONUS": {
+        "USGS_HUC12": "usgs_huc12_crosswalk.conus.parquet",
+        "USGS_NWM21": "usgs_nwm22_crosswalk.conus.parquet",
+        "USGS_NWM22": "usgs_nwm22_crosswalk.conus.parquet",
+        "USGS_NWM30": "usgs_nwm30_crosswalk.conus.parquet",
+        "NWM22_HUC12": "nwm22_huc12_crosswalk.conus.parquet",
+        "NWM30_HUC12": "nwm30_huc12_crosswalk.conus.parquet"
+    },
+    "GRID_WEIGHTS_FILES_CONUS": {
+        "HUC10_NWM": "huc10_to_nwm_grid_weights.conus.parquet",
+        "USGS_NWM": "usgs_basins_to_nwm_grid_weights.all.parquet"
+    },
+    "USGS_ATTRIBUTES_CONUS": {
+        "DRAINAGE_AREA": "usgs_attr_drainage_area.all.parquet",
+        "ECOREGIONS": "usgs_attr_ecoregions.conus.parquet",
+        "STREAM_ORDER": "usgs_attr_stream_order.conus.parquet",
+        "HW_THRESHOLD": "usgs_attr_retro22_2yr_flow.conus.parquet"
+    }
+}
